@@ -1,0 +1,102 @@
+
+
+services:
+  mariadb:
+    image: mariadb
+    container_name: mariadb
+    build:
+      context: ./requirements/mariadb
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - MARIADB_ROOT_PASSWORD_FILE=${MARIADB_ROOT_PASSWORD_FILE}
+      - MARIADB_USER_PASSWORD_FILE=${MARIADB_USER_PASSWORD_FILE}
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - inception
+    secrets:
+      - mariadb_root_password
+      - mariadb_user_password
+    healthcheck:
+      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  wordpress:
+    image: wordpress
+    container_name: wordpress
+    build:
+      context: ./requirements/wordpress
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - MARIADB_USER_PASSWORD_FILE=${MARIADB_USER_PASSWORD_FILE}
+      - WP_ADMIN_PASSWORD_FILE=${WP_ADMIN_PASSWORD_FILE}
+      - WP_AUTHOR_PASSWORD_FILE=${WP_AUTHOR_PASSWORD_FILE}
+    volumes:
+      - wordpress_data:/var/www/html
+    networks:
+      - inception
+    secrets:
+      - mariadb_user_password
+      - wp_admin_password
+      - wp_author_password
+    expose:
+      - "9000"
+
+  nginx:
+    image: nginx
+    container_name: nginx
+    build:
+      context: ./requirements/nginx
+    depends_on:
+      - wordpress
+    restart: unless-stopped
+    ports:
+      - "443:443"
+    volumes:
+      - wordpress_data:/var/www/html:ro
+    networks:
+      - inception
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD", "curl", "-k", "https://localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  inception:
+    name: ${NETWORK_NAME}
+
+volumes:
+  db_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${DB_VOLUME_PATH}
+  wordpress_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${WP_VOLUME_PATH}
+
+secrets:
+  mariadb_root_password:
+    file: ../secrets/db_root_password.txt
+  mariadb_user_password:
+    file: ../secrets/db_user_password.txt
+  wp_admin_password:
+    file: ../secrets/wp_admin_password.txt
+  wp_author_password:
+    file: ../secrets/wp_author_password.txt

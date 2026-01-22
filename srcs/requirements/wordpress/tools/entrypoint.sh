@@ -22,4 +22,6 @@ if [ ! -f wp-config.php ]; then
     wp user create $WP_AUTHOR_USER $WP_AUTHOR_EMAIL --role=author --user_pass=$AUTHOR_PASSWORD --allow-root
 fi
 
+sed -i 's|^listen = /run/php/php8.2-fpm.sock|listen = 9000|' /etc/php/8.2/fpm/pool.d/www.conf
+
 exec "$@"

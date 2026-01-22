@@ -1,27 +1,99 @@
 # User Documentation
 
-## Stack overview
-The Inception stack exposes a single HTTPS endpoint (`https://login.42.fr`) served by NGINX. Internally, NGINX proxies PHP requests to a WordPress container running PHP 8.2 via php-fpm on top of Debian Bookworm, which in turn persists data inside a MariaDB database. Two bind-mounted directories (`/home/login/data/mariadb` and `/home/login/data/wordpress`) ensure data stays on the host.
+## What Services Are Provided
 
-## Starting and stopping the services
-1. Ensure Docker and Docker Compose v2+ are installed in your VM.
-2. Populate the secret files under `secrets/` with secure passwords.
-3. From the repository root, run `make` (or `make up`) to build and start all containers.
-4. To stop services without removing data, run `make down`.
-5. To destroy everything (including volumes), run `make fclean`.
+The Inception stack provides a complete WordPress website infrastructure with:
+- **NGINX** - Web server handling HTTPS connections on port 443
+- **WordPress** - Content management system with PHP-FPM
+- **MariaDB** - Database server storing all WordPress data
 
-## Accessing the website and administration panel
-1. Update your hosts file so `login.42.fr` resolves to the VM’s IP address.
-2. Open `https://login.42.fr` in a browser. Accept the self-signed certificate warning.
-3. Use the administrator credentials (stored in `secrets/wp_admin_password.txt`) with the admin username from `srcs/.env` to log into `https://login.42.fr/wp-admin`.
+The stack exposes a single HTTPS endpoint at `https://ehafiane.42.fr`, served securely with TLS 1.2/1.3.
 
-## Credentials management
-- Passwords for MariaDB root/user and WordPress admin/author users live in `secrets/*.txt`. Each file contains a single password.
-- Usernames, domain name, and emails are defined in `srcs/.env`.
-- Update these values before running `make` and keep secrets outside version control.
+## Starting and Stopping the Project
 
-## Verifying services
-- `make status` shows container states through Docker Compose.
-- `docker compose -f srcs/docker-compose.yml --env-file srcs/.env logs -f` streams logs.
-- Inside the VM, `docker ps` confirms the three containers (nginx, wordpress, mariadb) are running.
-- Visit the site and admin panel to ensure WordPress loads correctly.
+### Starting the Stack
+From the project root directory:
+```bash
+make
+```
+This will create data directories, build all Docker images, and start the containers.
+
+### Stopping the Stack
+```bash
+make down      # Stop containers, keep data
+make stop      # Same as down
+```
+
+### Complete Cleanup
+```bash
+make fclean    # Stop containers and delete all data
+```
+
+## Accessing the Website and Administration Panel
+
+### Prerequisites
+Add the domain to your hosts file:
+```bash
+echo "127.0.0.1 ehafiane.42.fr" | sudo tee -a /etc/hosts
+```
+
+### Access Points
+- **Main Website**: `https://ehafiane.42.fr`
+- **Admin Panel**: `https://ehafiane.42.fr/wp-admin`
+
+Your browser will show a security warning due to the self-signed SSL certificate. This is normal for development - accept it to proceed.
+
+## Locating and Managing Credentials
+
+All credentials are stored in `srcs/.env`:
+
+```bash
+# Database passwords
+MARIADB_ROOT_PASSWORD=rootpass123      # MariaDB root password
+MARIADB_USER_PASSWORD=userpass123      # MariaDB user password
+
+# WordPress passwords
+WP_ADMIN_PASSWORD=adminpass123         # Admin login password
+WP_AUTHOR_PASSWORD=authorpass123       # Author user password
+```
+
+**Usernames:**
+- WordPress Admin: `site_keeper` (defined by `WP_ADMIN_USER`)
+- WordPress Author: `content_editor` (defined by `WP_AUTHOR_USER`)
+- Database User: `wp_user` (defined by `MARIADB_USER`)
+
+**To change credentials:**
+1. Edit `srcs/.env`
+2. Run `make fclean && make` to recreate everything with new credentials
+
+## Checking That Services Are Running Correctly
+
+### View Container Status
+```bash
+make status    # or: make ps
+```
+
+### View Live Logs
+```bash
+make logs
+```
+
+### Manual Checks
+```bash
+docker ps      # All 3 containers should show "Up"
+```
+
+Expected containers:
+- `nginx` - Running on port 443
+- `wordpress` - Running internally
+- `mariadb` - Running internally
+
+### Verify Website Access
+1. Open `https://ehafiane.42.fr` in your browser
+2. You should see the WordPress homepage
+3. Access `https://ehafiane.42.fr/wp-admin` and log in with admin credentials
+
+### Health Checks
+The stack includes automatic health checks:
+- MariaDB: Ping test every 10 seconds
+- WordPress: Waits for MariaDB to be healthy before starting
